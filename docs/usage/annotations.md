@@ -20,6 +20,10 @@ Select a tool from the toolbar or press the keyboard shortcut.
 viewer.rois_df      # pd.DataFrame: id, x, y, width, height
 viewer.polygons_df  # pd.DataFrame: id, points, num_vertices
 viewer.points_df    # pd.DataFrame: id, x, y
+
+# Public synced payload for widget-style access in Jupyter/anywidget:
+viewer.annotations["polygons"]
+viewer.value["polygons"]
 ```
 
 ## Clearing annotations

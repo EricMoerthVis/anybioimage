@@ -131,6 +131,10 @@ class BioImageViewer(
     point_color = traitlets.Unicode("#0066ff").tag(sync=True)
     point_radius = traitlets.Int(5).tag(sync=True)
 
+    # Public annotation payload for notebook access
+    annotations = traitlets.Dict({}).tag(sync=True)
+    value = traitlets.Dict({}).tag(sync=True)
+
     # Selection
     selected_annotation_id = traitlets.Unicode("").tag(sync=True)
     selected_annotation_type = traitlets.Unicode("").tag(sync=True)
@@ -195,6 +199,10 @@ class BioImageViewer(
         self.observe(self._on_well_change, names=["current_well"])
         self.observe(self._on_fov_change, names=["current_fov"])
         self.observe(self._on_channel_settings_change, names=["_channel_settings"])
+        self.observe(
+            self._on_annotations_change,
+            names=["_rois_data", "_polygons_data", "_points_data"],
+        )
 
         # Observer for tile-based loading
         self.observe(self._on_tile_request, names=["_tile_request"])
@@ -202,6 +210,8 @@ class BioImageViewer(
         self.observe(self._on_auto_contrast_request, names=["_auto_contrast_request"])
         self.observe(self._on_histogram_request, names=["_histogram_request"])
         self.observe(self._on_jpeg_toggle, names=["use_jpeg_tiles"])
+        self.on_msg(self._handle_frontend_message)
+        self._sync_annotation_payloads()
 
     def close(self):
         """Clean up resources when the widget is closed."""
@@ -210,6 +220,30 @@ class BioImageViewer(
         if self._prefetch_executor is not None:
             self._prefetch_executor.shutdown(wait=False)
         super().close()
+
+    def _on_annotations_change(self, change=None):
+        """Keep public annotation payload traits in sync with widget state."""
+        self._sync_annotation_payloads()
+
+    def _handle_frontend_message(self, _, content, buffers):
+        """Handle explicit frontend sync messages."""
+        del buffers
+        if not isinstance(content, dict):
+            return
+        if content.get("type") != "annotations_sync":
+            return
+
+        with self.hold_trait_notifications():
+            if "rois" in content:
+                self._rois_data = content["rois"]
+            if "polygons" in content:
+                self._polygons_data = content["polygons"]
+            if "points" in content:
+                self._points_data = content["points"]
+            if "selected_annotation_id" in content:
+                self.selected_annotation_id = content["selected_annotation_id"]
+            if "selected_annotation_type" in content:
+                self.selected_annotation_type = content["selected_annotation_type"]
 
     _esm = """
     async function loadImage(base64Data) {
@@ -1221,7 +1255,19 @@ class BioImageViewer(
             model.set('selected_annotation_id', '');
             model.set('selected_annotation_type', '');
             model.save_changes();
+            syncAnnotationsToPython();
             renderCanvas();
+        }
+
+        function syncAnnotationsToPython() {
+            model.send({
+                type: 'annotations_sync',
+                rois: model.get('_rois_data') || [],
+                polygons: model.get('_polygons_data') || [],
+                points: model.get('_points_data') || [],
+                selected_annotation_id: model.get('selected_annotation_id') || '',
+                selected_annotation_type: model.get('selected_annotation_type') || ''
+            });
         }
 
         async function loadMaskCanvas(mask) {
@@ -1511,6 +1557,7 @@ class BioImageViewer(
             model.set('selected_annotation_id', '');
             model.set('selected_annotation_type', '');
             model.save_changes();
+            syncAnnotationsToPython();
             renderCanvas();
         });
 
@@ -1527,6 +1574,7 @@ class BioImageViewer(
                 model.set('selected_annotation_id', '');
                 model.set('selected_annotation_type', '');
                 model.save_changes();
+                syncAnnotationsToPython();
                 renderCanvas();
             }
             else if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -1593,6 +1641,7 @@ class BioImageViewer(
                     lastClickedSamCoords = { x: Math.round(imgCoords.x), y: Math.round(imgCoords.y) };
                 }
                 model.save_changes();
+                syncAnnotationsToPython();
                 renderCanvas();
             } else if (mode === 'draw') {
                 isDrawing = true;
@@ -1609,6 +1658,7 @@ class BioImageViewer(
                 points.push(newPoint);
                 model.set('_points_data', [...points]);
                 model.save_changes();
+                syncAnnotationsToPython();
                 renderCanvas();
             } else if (mode === 'pan') {
                 isDragging = true;
@@ -1637,6 +1687,7 @@ class BioImageViewer(
                     polygons.push(newPoly);
                     model.set('_polygons_data', [...polygons]);
                     model.save_changes();
+                    syncAnnotationsToPython();
                     currentPolygonPoints = [];
                     renderCanvas();
                     return;
@@ -1659,6 +1710,7 @@ class BioImageViewer(
             polygons.push(newPoly);
             model.set('_polygons_data', [...polygons]);
             model.save_changes();
+            syncAnnotationsToPython();
             currentPolygonPoints = [];
             renderCanvas();
         });
@@ -1720,6 +1772,7 @@ class BioImageViewer(
                     rois.push(newRoi);
                     model.set('_rois_data', [...rois]);
                     model.save_changes();
+                    syncAnnotationsToPython();
                 }
                 currentDrawRect = null;
                 isDrawing = false;

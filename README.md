@@ -119,6 +119,10 @@ Export annotations as DataFrames:
 viewer.rois_df      # rectangles: id, x, y, width, height
 viewer.polygons_df  # polygons: id, points, num_vertices
 viewer.points_df    # points: id, x, y
+
+# Synced widget payload, useful in Jupyter:
+viewer.annotations["polygons"]
+viewer.value["polygons"]
 ```
 
 ### SAM integration

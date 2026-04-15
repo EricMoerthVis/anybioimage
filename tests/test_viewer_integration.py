@@ -267,3 +267,60 @@ class TestAnnotationDataFrameEdgeCases:
         viewer = BioImageViewer()
         viewer.clear_all_annotations()  # Should not raise
         assert viewer._rois_data == []
+
+
+class TestAnnotationSyncPayload:
+    """Test public synced annotation payloads for notebooks."""
+
+    def test_value_and_annotations_start_empty(self):
+        viewer = BioImageViewer()
+        expected = {"rois": [], "polygons": [], "points": []}
+        assert viewer.annotations == expected
+        assert viewer.value == expected
+
+    def test_value_and_annotations_mirror_polygon_updates(self):
+        viewer = BioImageViewer()
+        polygon = {
+            "id": "poly_1",
+            "points": [{"x": 1, "y": 2}, {"x": 3, "y": 4}, {"x": 5, "y": 6}],
+        }
+
+        viewer._polygons_data = [polygon]
+
+        assert viewer.annotations["polygons"] == [polygon]
+        assert viewer.value["polygons"] == [polygon]
+        assert viewer.polygons_df.iloc[0]["num_vertices"] == 3
+
+    def test_value_and_annotations_clear_with_annotations(self):
+        viewer = BioImageViewer()
+        viewer._rois_data = [{"id": "roi_1", "x": 1, "y": 2, "width": 3, "height": 4}]
+        viewer._polygons_data = [
+            {"id": "poly_1", "points": [{"x": 0, "y": 0}, {"x": 2, "y": 0}, {"x": 1, "y": 2}]}
+        ]
+        viewer._points_data = [{"id": "pt_1", "x": 9, "y": 8}]
+
+        viewer.clear_all_annotations()
+
+        expected = {"rois": [], "polygons": [], "points": []}
+        assert viewer.annotations == expected
+        assert viewer.value == expected
+
+    def test_frontend_annotation_message_updates_traits(self):
+        viewer = BioImageViewer()
+        content = {
+            "type": "annotations_sync",
+            "rois": [{"id": "roi_1", "x": 1, "y": 2, "width": 3, "height": 4}],
+            "polygons": [{"id": "poly_1", "points": [{"x": 0, "y": 0}, {"x": 1, "y": 0}, {"x": 1, "y": 1}]}],
+            "points": [{"id": "pt_1", "x": 8, "y": 9}],
+            "selected_annotation_id": "poly_1",
+            "selected_annotation_type": "polygon",
+        }
+
+        viewer._handle_frontend_message(None, content, None)
+
+        assert viewer._rois_data == content["rois"]
+        assert viewer._polygons_data == content["polygons"]
+        assert viewer._points_data == content["points"]
+        assert viewer.selected_annotation_id == "poly_1"
+        assert viewer.selected_annotation_type == "polygon"
+        assert viewer.annotations["polygons"] == content["polygons"]

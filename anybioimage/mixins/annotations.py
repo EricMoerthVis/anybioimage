@@ -106,3 +106,19 @@ class AnnotationsMixin:
         self.clear_points()
         self.selected_annotation_id = ""
         self.selected_annotation_type = ""
+
+    def _annotation_payload(self) -> dict:
+        """Build the public annotation payload exposed to notebook users."""
+        return {
+            "rois": list(self._rois_data),
+            "polygons": list(self._polygons_data),
+            "points": list(self._points_data),
+        }
+
+    def _sync_annotation_payloads(self):
+        """Mirror annotation state into public synced traits when available."""
+        payload = self._annotation_payload()
+        if hasattr(self, "annotations"):
+            self.annotations = payload
+        if hasattr(self, "value"):
+            self.value = payload
